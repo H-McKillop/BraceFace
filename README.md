@@ -1,1 +1,1 @@
-This app can plan really anything but it is normally used as an orthodontics appointment schedualer.
+This easy and simple app can be easily set up to display when you have your next orthodontics appointments.
