@@ -30,6 +30,10 @@
             flex-direction: column;
         }
 
+        label {
+            margin: 5px 0 5px;
+        }
+
         input {
             margin: 10px 0;
             padding: 10px;
@@ -112,6 +116,13 @@
         .close-btn:hover {
             background-color: #c9302c;
         }
+
+        .feedback {
+            display: none;
+            margin: 10px 0;
+            color: red;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -121,7 +132,9 @@
         <div id="auth-container">
             <form id="login-form" class="auth-form">
                 <h2>Login</h2>
+                <label for="login-username">Username</label>
                 <input type="text" id="login-username" placeholder="Username" required>
+                <label for="login-password">Password</label>
                 <input type="password" id="login-password" placeholder="Password" required>
                 <button type="submit">Login</button>
                 <button type="button" id="show-register">Don't have an account? Register</button>
@@ -129,8 +142,11 @@
 
             <form id="register-form" class="auth-form hidden">
                 <h2>Register</h2>
+                <label for="register-username">Username</label>
                 <input type="text" id="register-username" placeholder="Username" required>
+                <label for="register-email">Email</label>
                 <input type="email" id="register-email" placeholder="Email" required>
+                <label for="register-password">Password</label>
                 <input type="password" id="register-password" placeholder="Password" required>
                 <button type="submit">Register</button>
                 <button type="button" id="show-login">Already have an account? Login</button>
@@ -138,15 +154,19 @@
         </div>
 
         <form id="appointment-form" class="hidden">
+            <label for="patient-name">Patient Name</label>
             <input type="text" id="patient-name" placeholder="Patient Name" required>
+            <label for="appointment-date">Appointment Date</label>
             <input type="date" id="appointment-date" required>
+            <label for="appointment-time">Appointment Time</label>
             <input type="time" id="appointment-time" required>
             <div class="button-container">
                 <button type="button" id="toggle-appointments">Show Appointments</button>
                 <button type="submit">Add Appointment</button>
             </div>
         </form>
-        <ul id="appointment-list"></ul>
+        <button id="logout" class="hidden">Logout</button>
+        <div class="feedback" id="feedback"></div>
     </div>
 
     <div id="appointments-modal" class="appointments-table">
@@ -172,30 +192,45 @@
         const appointmentsModal = document.getElementById('appointments-modal');
         const appointmentsBody = document.getElementById('appointments-body');
         const closeButton = document.getElementById('close-modal');
+        const feedbackContainer = document.getElementById('feedback');
 
         const loginForm = document.getElementById('login-form');
         const registerForm = document.getElementById('register-form');
         const authContainer = document.getElementById('auth-container');
         const appointmentForm = document.getElementById('appointment-form');
+        const logoutButton = document.getElementById('logout');
 
-        const appointments = []; // Store appointments in an array
-        const users = {}; // Simple in-memory user storage
+        let appointments = JSON.parse(localStorage.getItem('appointments')) || [];
+        const users = {};
+        let currentUser = localStorage.getItem('currentUser');
 
-        let currentUser = null; // Track the currently logged-in user
+        function showFeedback(message) {
+            feedbackContainer.textContent = message;
+            feedbackContainer.style.display = 'block';
+            setTimeout(() => {
+                feedbackContainer.style.display = 'none';
+            }, 3000);
+        }
 
-        // Switch to registration form
+        function loadUserState() {
+            if (currentUser) {
+                authContainer.classList.add('hidden');
+                appointmentForm.classList.remove('hidden');
+                logoutButton.classList.remove('hidden');
+                loadAppointments();
+            }
+        }
+
         document.getElementById('show-register').addEventListener('click', function() {
             loginForm.classList.add('hidden');
             registerForm.classList.remove('hidden');
         });
 
-        // Switch to login form
         document.getElementById('show-login').addEventListener('click', function() {
             registerForm.classList.add('hidden');
             loginForm.classList.remove('hidden');
         });
 
-        // Handle user registration
         registerForm.addEventListener('submit', function(e) {
             e.preventDefault();
             const username = document.getElementById('register-username').value;
@@ -203,31 +238,45 @@
             const password = document.getElementById('register-password').value;
 
             if (username && email && password) {
-                users[username] = { email, password }; // Store user credentials
-                alert('Registration successful! You can now log in.');
+                if (users[username]) {
+                    showFeedback('Username already exists!');
+                    return;
+                }
+                users[username] = { email, password };
+                showFeedback('Registration successful! You can now log in.');
                 registerForm.reset();
                 registerForm.classList.add('hidden');
                 loginForm.classList.remove('hidden');
             }
         });
 
-        // Handle user login
         loginForm.addEventListener('submit', function(e) {
             e.preventDefault();
             const username = document.getElementById('login-username').value;
             const password = document.getElementById('login-password').value;
 
             if (users[username] && users[username].password === password) {
-                alert('Login successful!');
-                currentUser = username; // Set the current user
+                showFeedback('Login successful!');
+                currentUser = username;
+                localStorage.setItem('currentUser', username); // Save user in localStorage
                 authContainer.classList.add('hidden');
                 appointmentForm.classList.remove('hidden');
+                logoutButton.classList.remove('hidden');
+                loadAppointments();
             } else {
-                alert('Invalid username or password!');
+                showFeedback('Invalid username or password!');
             }
         });
 
-        // Handle appointment submission
+        function loadAppointments() {
+            appointmentsBody.innerHTML = '';
+            appointments.forEach(appointment => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${appointment.patientName}</td><td>${appointment.appointmentDate}</td><td>${appointment.appointmentTime}</td>`;
+                appointmentsBody.appendChild(row);
+            });
+        }
+
         appointmentForm.addEventListener('submit', function(e) {
             e.preventDefault();
 
@@ -236,25 +285,42 @@
             const appointmentTime = document.getElementById('appointment-time').value;
 
             if (patientName && appointmentDate && appointmentTime) {
-                appointments.push({ patientName, appointmentDate, appointmentTime });
-                appointmentForm.reset();
+                const newAppointment = { patientName, appointmentDate, appointmentTime };
+                if (!appointments.some(appointment => 
+                    appointment.patientName === newAppointment.patientName && 
+                    appointment.appointmentDate === newAppointment.appointmentDate && 
+                    appointment.appointmentTime === newAppointment.appointmentTime)) {
+                    appointments.push(newAppointment);
+                    localStorage.setItem('appointments', JSON.stringify(appointments));
+                    appointmentForm.reset();
+                    loadAppointments();
+                    showFeedback('Appointment added successfully!');
+                } else {
+                    showFeedback('This appointment already exists!');
+                }
             }
         });
 
         toggleButton.addEventListener('click', function() {
-            appointmentsBody.innerHTML = ''; // Clear previous entries
-            appointments.forEach(appointment => {
-                const row = document.createElement('tr');
-                row.innerHTML = `<td>${appointment.patientName}</td><td>${appointment.appointmentDate}</td><td>${appointment.appointmentTime}</td>`;
-                appointmentsBody.appendChild(row);
-            });
-
             appointmentsModal.style.display = 'block';
+            loadAppointments();
         });
 
         closeButton.addEventListener('click', function() {
             appointmentsModal.style.display = 'none';
         });
+
+        logoutButton.addEventListener('click', function() {
+            currentUser = null;
+            localStorage.removeItem('currentUser'); // Clear user from localStorage
+            authContainer.classList.remove('hidden');
+            appointmentForm.classList.add('hidden');
+            logoutButton.classList.add('hidden');
+            showFeedback('Logged out successfully!');
+        });
+
+        // Load user state on page load
+        loadUserState();
     </script>
 </body>
 </html>
